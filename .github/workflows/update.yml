@@ -1,0 +1,43 @@
+name: Update follow-ups board
+
+# Regenera index.html (board agregado del monitor de follow-ups F24) 2×/día y lo commitea.
+# GitHub Pages sirve index.html → URL framable embebida como iframe dentro de GHL.
+
+on:
+  schedule:
+    - cron: "0 13 * * *"    # 7:00 AM MX (UTC-6)
+    - cron: "0 1 * * *"     # 7:00 PM MX
+  workflow_dispatch:
+
+concurrency:
+  group: f24-followups-board
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Regenerar board
+        env:
+          MAKE_API_TOKEN: ${{ secrets.MAKE_API_TOKEN }}
+          MAKE_API_ZONE: ${{ secrets.MAKE_API_ZONE }}
+        run: python build_board.py
+      - name: Commit si cambió
+        run: |
+          git config user.name "spekgen-bot"
+          git config user.email "bot@spekgen.com"
+          if ! git diff --quiet index.html; then
+            git add index.html
+            git commit -m "board update $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          else
+            echo "sin cambios"
+          fi
